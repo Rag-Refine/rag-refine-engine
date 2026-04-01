@@ -1,14 +1,19 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from dotenv import load_dotenv
 
-from converter import convert_pdf_to_markdown
+load_dotenv()
+
+from fastapi import FastAPI, File, UploadFile, HTTPException  # noqa: E402
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from pydantic import BaseModel  # noqa: E402
+import tempfile  # noqa: E402
+
+from tasks import process_pdf_task  # noqa: E402
 
 
 app = FastAPI(
     title="RAG-Refine Engine",
     description="PDF-to-Markdown conversion microservice optimised for LLM RAG pipelines.",
-    version="0.1.0",
+    version="0.2.0",
 )
 
 app.add_middleware(
@@ -20,37 +25,28 @@ app.add_middleware(
 )
 
 
-class ConversionMetadata(BaseModel):
-    page_count: int
-    processing_time_seconds: float
+class QueuedResponse(BaseModel):
+    job_id: str
+    status: str
 
 
-class ConversionResponse(BaseModel):
-    markdown: str
-    file_name: str
-    metadata: ConversionMetadata
-
-
-@app.post("/convert", response_model=ConversionResponse, summary="Convert a PDF to Markdown")
+@app.post("/convert", response_model=QueuedResponse, summary="Queue a PDF conversion job")
 async def convert_pdf(file: UploadFile = File(...)):
     """
-    Accepts a PDF via multipart/form-data and returns high-fidelity Markdown
-    suitable for LLM ingestion (tables, headings, and lists preserved).
+    Accepts a PDF via multipart/form-data, queues a background Celery task, and
+    returns a job_id immediately. The result is delivered via webhook to the
+    Next.js backend once processing completes.
     """
-    if file.content_type not in ("application/pdf", "application/octet-stream"):
-        # Accept application/octet-stream as well for clients that don't set the right MIME type.
-        # Strict PDF validation is handled inside the converter.
-        pass
-
     file_bytes = await file.read()
     if not file_bytes:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
-    try:
-        result = convert_pdf_to_markdown(file_bytes, file.filename or "document.pdf")
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except RuntimeError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    # Write to a persistent temp file — the Celery task owns cleanup.
+    suffix = "".join(c for c in (file.filename or "doc.pdf") if c in ".abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")[-10:] or ".pdf"
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        tmp.write(file_bytes)
+        tmp_path = tmp.name
 
-    return result
+    task = process_pdf_task.delay(tmp_path, file.filename or "document.pdf")
+
+    return QueuedResponse(job_id=task.id, status="queued")
