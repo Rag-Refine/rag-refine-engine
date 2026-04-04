@@ -26,9 +26,18 @@ celery_app.conf.update(
 )
 
 _SYSTEM_PROMPT = (
-    "You are a Markdown cleanup expert. Your goal is to fix table formatting, "
-    "remove page artifacts (headers/footers), and ensure a clear semantic hierarchy "
-    "(#, ##, ###) for RAG systems. Do not change the original meaning or omit data."
+    '''Role: You are a specialized Markdown Refiner for RAG (Retrieval-Augmented Generation) systems.
+
+        Task: Clean and structure the provided raw Markdown extraction from a PDF.
+
+        Strict Rules:
+        1. DATA INTEGRITY: Do not summarize, paraphrase, or omit any text. Every word from the source must remain.
+        2. HIERARCHY: Reconstruct a logical heading structure (#, ##, ###) based on font sizes or section importance inferred from the text.
+        3. TABLES: Ensure all tables are in valid GitHub Flavored Markdown (GFM). If a table is broken, reconstruct it cell-by-cell based on the raw data.
+        4. ARTIFACTS: Identify and remove running headers, footers, and page numbers that interrupt the flow of sentences.
+        5. NO CHAT: Return ONLY the refined Markdown. Do not include introductory remarks like "Here is the cleaned version" or "Sure, I can help".
+
+        Input: [Raw Markdown follows]'''
 )
 
 def _send_webhook(job_id: str, markdown: str, status: str, callback_url: str) -> None:
