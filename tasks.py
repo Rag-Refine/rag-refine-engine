@@ -1,7 +1,10 @@
 import os
 import logging
 
+from dotenv import load_dotenv
 import requests
+
+load_dotenv()
 from celery import Celery
 from groq import Groq
 
@@ -28,23 +31,22 @@ _SYSTEM_PROMPT = (
     "(#, ##, ###) for RAG systems. Do not change the original meaning or omit data."
 )
 
-WEBHOOK_URL = "http://localhost:3000/api/webhooks/engine-callback"
-
-
-def _send_webhook(job_id: str, markdown: str, status: str) -> None:
+def _send_webhook(job_id: str, markdown: str, status: str, callback_url: str) -> None:
+    logger.info("Webhook payload — job_id: %s | status: %s | markdown length: %d chars | preview: %.200s", job_id, status, len(markdown), markdown)
     try:
-        requests.post(
-            WEBHOOK_URL,
+        resp = requests.post(
+            callback_url,
             json={"job_id": job_id, "markdown": markdown, "status": status},
+            headers={"x-webhook-secret": os.getenv("WEBHOOK_SECRET", "")},
             timeout=10,
         )
+        logger.info("Webhook sent for job %s: HTTP %s", job_id, resp.status_code)
     except Exception as exc:
-        logger.warning("Webhook delivery failed for job %s: %s", job_id, exc)
+        logger.error("Webhook delivery failed for job %s: %s", job_id, exc)
 
 
 @celery_app.task(bind=True)
-def process_pdf_task(self, tmp_path: str, file_name: str) -> None:
-    job_id = self.request.id
+def process_pdf_task(self, tmp_path: str, file_name: str, job_id: str, callback_url: str) -> None:
     refined_markdown = ""
 
     try:
@@ -57,7 +59,7 @@ def process_pdf_task(self, tmp_path: str, file_name: str) -> None:
         # Step 2: Groq Llama 3 refinement
         client = Groq(api_key=os.getenv("GROQ_API_KEY"))
         response = client.chat.completions.create(
-            model="llama3-8b-8192",
+            model="llama-3.1-8b-instant",
             messages=[
                 {"role": "system", "content": _SYSTEM_PROMPT},
                 {"role": "user", "content": raw_markdown},
@@ -65,11 +67,11 @@ def process_pdf_task(self, tmp_path: str, file_name: str) -> None:
         )
         refined_markdown = response.choices[0].message.content or raw_markdown
 
-        _send_webhook(job_id, refined_markdown, "completed")
+        _send_webhook(job_id, refined_markdown, "completed", callback_url)
 
     except Exception as exc:
         logger.error("Task %s failed: %s", job_id, exc)
-        _send_webhook(job_id, "", "failed")
+        _send_webhook(job_id, "", "failed", callback_url)
 
     finally:
         try:

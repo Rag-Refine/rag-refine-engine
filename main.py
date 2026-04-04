@@ -2,7 +2,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from fastapi import FastAPI, File, UploadFile, HTTPException  # noqa: E402
+from fastapi import FastAPI, File, Form, UploadFile, HTTPException  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 import tempfile  # noqa: E402
@@ -31,7 +31,11 @@ class QueuedResponse(BaseModel):
 
 
 @app.post("/convert", response_model=QueuedResponse, summary="Queue a PDF conversion job")
-async def convert_pdf(file: UploadFile = File(...)):
+async def convert_pdf(
+    file: UploadFile = File(...),
+    job_id: str = Form(...),
+    callback_url: str = Form(...),
+):
     """
     Accepts a PDF via multipart/form-data, queues a background Celery task, and
     returns a job_id immediately. The result is delivered via webhook to the
@@ -47,6 +51,6 @@ async def convert_pdf(file: UploadFile = File(...)):
         tmp.write(file_bytes)
         tmp_path = tmp.name
 
-    task = process_pdf_task.delay(tmp_path, file.filename or "document.pdf")
+    process_pdf_task.delay(tmp_path, file.filename or "document.pdf", job_id, callback_url)
 
-    return QueuedResponse(job_id=task.id, status="queued")
+    return QueuedResponse(job_id=job_id, status="queued")
