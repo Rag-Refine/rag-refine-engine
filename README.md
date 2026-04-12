@@ -16,6 +16,11 @@ Converts any PDF into high-fidelity Markdown — preserving tables, headings, an
 ## Setup
 
 ```bash
+# with docker
+docker compose up --build
+# -----------------------------
+
+
 # 1. Create the virtual environment
 python3 -m venv .venv
 

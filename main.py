@@ -12,8 +12,8 @@ from tasks import process_pdf_task  # noqa: E402
 
 app = FastAPI(
     title="RAG-Refine Engine",
-    description="PDF-to-Markdown conversion microservice optimised for LLM RAG pipelines.",
-    version="0.2.0",
+    description="Audit-ready PDF conversion engine: structured JSON blocks with bounding boxes and AI confidence scores.",
+    version="0.3.0",
 )
 
 app.add_middleware(

@@ -1,0 +1,55 @@
+services:
+  # 1. Broker de Mensagens (Redis)
+  redis:
+    image: redis:7-alpine
+    container_name: rr-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # 2. Engine API (FastAPI)
+  engine-api:
+    build: .
+    container_name: rr-engine-api
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - shared-tmp:/tmp # Partilha a pasta de ficheiros temporários
+    # Permite que a API também fale com o host se necessário
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # 3. Engine Worker (Celery + Docling + Groq)
+  engine-worker:
+    build: .
+    container_name: rr-engine-worker
+    # --pool=solo evita alguns problemas de permissões em desenvolvimento
+    command: celery -A tasks worker --loglevel=info --pool=solo
+    env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - shared-tmp:/tmp # Acesso aos mesmos ficheiros que a API recebeu
+    # CRÍTICO: Permite ao Worker enviar o Webhook para o teu localhost:3000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+# Definição do volume partilhado em memória/disco
+volumes:
+  shared-tmp:

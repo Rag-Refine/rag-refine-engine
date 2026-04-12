@@ -1,10 +1,9 @@
-# /engine/Dockerfile
 FROM python:3.13-slim
 
-# Instalar dependências de sistema necessárias para processamento de documentos e OCR
+# Instalar dependências atualizadas para Debian Trixie/Slim
 RUN apt-get update && apt-get install -y \
     build-essential \
-    libgl1-mesa-glx \
+    libgl1 \
     libglib2.0-0 \
     gcc \
     python3-dev \
@@ -12,15 +11,10 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Upgrade pip para garantir compatibilidade com 3.13
-RUN pip install --no-cache-dir --upgrade pip
-
+# O resto do ficheiro mantém-se igual...
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 COPY . .
-
-EXPOSE 8000
-
-# Comando para a API
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
