@@ -28,13 +28,13 @@ redis-server
 celery -A tasks worker --loglevel=info --concurrency=1
 
 # Start FastAPI dev server (separate terminal)
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn main:app --host 0.0.0.0 --port 8888 --reload
 
 # Start FastAPI production server
-uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
+uvicorn main:app --host 0.0.0.0 --port 8888 --workers 4
 
 # Test the endpoint (returns job_id immediately)
-curl -X POST http://localhost:8000/convert -F "file=@/path/to/file.pdf"
+curl -X POST http://localhost:8888/convert -F "file=@/path/to/file.pdf"
 
 # Freeze dependencies after installing new packages
 pip freeze > requirements.txt

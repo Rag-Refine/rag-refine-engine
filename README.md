@@ -39,22 +39,22 @@ pip install -r requirements.txt
 ### Development (auto-reload on file changes)
 
 ```bash
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn main:app --host 0.0.0.0 --port 8888 --reload
 ```
 
 ### Production (multiple workers)
 
 ```bash
-uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
+uvicorn main:app --host 0.0.0.0 --port 8888 --workers 4
 ```
 
 Once running, the following URLs are available:
 
 | URL | Description |
 |-----|-------------|
-| `http://localhost:8000` | API root |
-| `http://localhost:8000/docs` | Interactive docs (Swagger UI) |
-| `http://localhost:8000/redoc` | Alternative docs (ReDoc) |
+| `http://localhost:8888` | API root |
+| `http://localhost:8888/docs` | Interactive docs (Swagger UI) |
+| `http://localhost:8888/redoc` | Alternative docs (ReDoc) |
 
 ---
 
@@ -107,14 +107,14 @@ Convert a PDF file to Markdown.
 ## Testing with curl
 
 ```bash
-curl -X POST http://localhost:8000/convert \
+curl -X POST http://localhost:8888/convert \
   -F "file=@/path/to/your/document.pdf"
 ```
 
 Pretty-print the Markdown field only (requires `jq`):
 
 ```bash
-curl -s -X POST http://localhost:8000/convert \
+curl -s -X POST http://localhost:8888/convert \
   -F "file=@/path/to/your/document.pdf" | jq -r '.markdown'
 ```
 
