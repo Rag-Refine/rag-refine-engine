@@ -77,6 +77,7 @@ def _audit_block(client: Groq, block: dict) -> tuple:
             messages=[
                 {"role": "system", "content": _AUDITOR_SYSTEM_PROMPT},
                 {"role": "user", "content": block["markdown"]},
+                {"role": "system","content": _VISION_SYSTEM_PROMPT },
             ],
             temperature=0.1,
         )
