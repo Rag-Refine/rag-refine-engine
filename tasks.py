@@ -73,7 +73,8 @@ def _audit_block(client: Groq, block: dict) -> tuple:
     """
     try:
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            # model="llama-3.3-70b-versatile",
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
             messages=[
                 {"role": "system", "content": _AUDITOR_SYSTEM_PROMPT},
                 {"role": "user", "content": block["markdown"]},
@@ -188,7 +189,8 @@ def process_pdf_task(self, tmp_path: str, file_name: str, job_id: str, callback_
                 "id": block["id"],
                 "type": block["type"],
                 "markdown": block["markdown"],
-                "location": block["location"],
+                "page": block["location"]["page"],
+                "bbox": block["location"]["bbox"],
             }
 
             if "level" in block:
@@ -196,11 +198,11 @@ def process_pdf_task(self, tmp_path: str, file_name: str, job_id: str, callback_
 
             if block["type"] in _AUDITED_TYPES:
                 score, note = _audit_block(client, block)
-                output_block["confidence"] = score
+                output_block["confidence_score"] = score
                 if note:
                     output_block["audit_note"] = note
             else:
-                output_block["confidence"] = _DEFAULT_CONFIDENCE
+                output_block["confidence_score"] = _DEFAULT_CONFIDENCE
 
             content.append(output_block)
 
@@ -227,15 +229,16 @@ def process_pdf_task(self, tmp_path: str, file_name: str, job_id: str, callback_
                 "id": "block_structured_layout",
                 "type": "structured_layout",
                 "markdown": vision_markdown,
-                "location": {"page": 1, "bbox": [0.0, 0.0, 1000.0, 1000.0]},
-                "confidence": 0.98,
+                "page": 1,
+                "bbox": [0.0, 0.0, 1000.0, 1000.0],
+                "confidence_score": 0.98,
             })
 
         payload = {
             "job_id": job_id,
             "status": "completed",
             "metadata": {
-                "pages": meta["pages"],
+                "page_count": meta["pages"],
                 "processing_time": f"{meta['processing_time_seconds']}s",
                 "vision_enhanced": vision_markdown is not None,
             },
@@ -247,7 +250,7 @@ def process_pdf_task(self, tmp_path: str, file_name: str, job_id: str, callback_
     except Exception as exc:
         logger.error("Task %s failed: %s", job_id, exc, exc_info=True)
         _send_webhook(
-            {"job_id": job_id, "status": "failed", "content": []},
+            {"job_id": job_id, "status": "failed", "content": [], "error_message": str(exc)},
             callback_url,
         )
 
