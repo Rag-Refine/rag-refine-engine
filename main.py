@@ -1,4 +1,5 @@
 from dotenv import load_dotenv
+import os
 
 load_dotenv()
 
@@ -14,6 +15,7 @@ from anonymizer import anonymize_pdf, summarize  # noqa: E402
 from tasks import process_pdf_task  # noqa: E402
 
 logger = logging.getLogger(__name__)
+ALLOW_ORIGINS = os.getenv("ALLOW_ORIGINS")
 
 
 app = FastAPI(
@@ -24,7 +26,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[ALLOW_ORIGINS],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
