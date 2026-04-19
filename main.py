@@ -4,10 +4,16 @@ load_dotenv()
 
 from fastapi import FastAPI, File, Form, UploadFile, HTTPException  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from fastapi.responses import Response  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
+import json  # noqa: E402
+import logging  # noqa: E402
 import tempfile  # noqa: E402
 
+from anonymizer import anonymize_pdf, summarize  # noqa: E402
 from tasks import process_pdf_task  # noqa: E402
+
+logger = logging.getLogger(__name__)
 
 
 app = FastAPI(
@@ -22,6 +28,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Redaction-Summary"],
 )
 
 
@@ -54,3 +61,47 @@ async def convert_pdf(
     process_pdf_task.delay(tmp_path, file.filename or "document.pdf", job_id, callback_url)
 
     return QueuedResponse(job_id=job_id, status="queued")
+
+
+@app.post(
+    "/anonymize",
+    summary="Redact PII from a PDF",
+    responses={
+        200: {
+            "content": {"application/pdf": {}},
+            "description": "Sanitized PDF; redaction summary in X-Redaction-Summary header.",
+        }
+    },
+)
+async def anonymize(file: UploadFile = File(...)):
+    """
+    Synchronously redact PII (TIN/NIF, IBAN, SWIFT, credit cards, NISS, CC,
+    passports, phones, emails, ZIPs, labeled names) from a PDF and return
+    the sanitized bytes. The per-type redaction summary is sent in the
+    `X-Redaction-Summary` header as a JSON object.
+
+    The original bytes are discarded as soon as the sanitized copy exists,
+    and no values (only counts) are logged.
+    """
+    file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+    try:
+        sanitized_bytes, raw_counts = anonymize_pdf(file_bytes)
+    except Exception as exc:
+        logger.error("Anonymization failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail="Anonymization failed.") from exc
+    finally:
+        # Purge the original buffer reference before responding.
+        del file_bytes
+
+    summary = summarize(raw_counts)
+    return Response(
+        content=sanitized_bytes,
+        media_type="application/pdf",
+        headers={
+            "X-Redaction-Summary": json.dumps(summary, separators=(",", ":")),
+            "Content-Disposition": f'attachment; filename="{(file.filename or "document.pdf")}"',
+        },
+    )
